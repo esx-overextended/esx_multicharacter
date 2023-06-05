@@ -1,332 +1,467 @@
-local mp_m_freemode_01 = `mp_m_freemode_01`
-local mp_f_freemode_01 = `mp_f_freemode_01`
-if ESX.GetConfig().Multichar then
+if not ESX.GetConfig().Multichar then return end
 
-	CreateThread(function()
-		while not ESX.PlayerLoaded do
-			Wait(100)
-			
-			if NetworkIsPlayerActive(PlayerId()) then
-				exports.spawnmanager:setAutoSpawn(false)
-				DoScreenFadeOut(0)
-				while not GetResourceState('esx_context') == 'started' do
-					Wait(100)
-				end
-				TriggerEvent("esx_multicharacter:SetupCharacters")
-				break
-			end
-		end
-	end)
+local playerId = PlayerId()
+local mp_m_freemode_01, mp_f_freemode_01 = `mp_m_freemode_01`, `mp_f_freemode_01`
+local hidingPlayers, canRelog, cam, spawned = false, true, nil, nil
+local setupCharacter, characterOptions, characterDeleteConfirmation, selectCharacterMenu
+local Characters = {}
 
-	local canRelog, cam, spawned = true, nil, nil
-	local Characters =  {}
+CreateThread(function()
+    while true do
+        if NetworkIsPlayerActive(playerId) then
+            exports.spawnmanager:setAutoSpawn(false)
 
-	RegisterNetEvent('esx_multicharacter:SetupCharacters')
-	AddEventHandler('esx_multicharacter:SetupCharacters', function()
-		ESX.PlayerLoaded = false
-		ESX.PlayerData = {}
-		spawned = false
-		cam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
-		local playerPed = PlayerPedId()
-		SetEntityCoords(playerPed, Config.Spawn.x, Config.Spawn.y, Config.Spawn.z, true, false, false, false)
-		SetEntityHeading(playerPed, Config.Spawn.w)
-		local offset = GetOffsetFromEntityInWorldCoords(playerPed, 0, 1.7, 0.4)
-		DoScreenFadeOut(0)
-		SetCamActive(cam, true)
-		RenderScriptCams(true, false, 1, true, true)
-		SetCamCoord(cam, offset.x, offset.y, offset.z)
-		PointCamAtCoord(cam, Config.Spawn.x, Config.Spawn.y, Config.Spawn.z + 1.3)
-		StartLoop()
-		ShutdownLoadingScreen()
-		ShutdownLoadingScreenNui()
-		TriggerEvent('esx:loadingScreenOff')
-		Wait(200)
-		TriggerServerEvent("esx_multicharacter:SetupCharacters")
-	end)
+            DoScreenFadeOut(1000)
 
-	StartLoop = function()
-		hidePlayers = true
-		MumbleSetVolumeOverride(PlayerId(), 0.0)
-		CreateThread(function()
-			local keys = {18, 27, 172, 173, 174, 175, 176, 177, 187, 188, 191, 201, 108, 109}
-			while hidePlayers do
-				DisableAllControlActions(0)
-				for i = 1, #keys do
-					EnableControlAction(0, keys[i], true)
-				end
-				SetEntityVisible(PlayerPedId(), 0, 0)
-				SetLocalPlayerVisibleLocally(1)
-				SetPlayerInvincible(PlayerId(), 1)
-				ThefeedHideThisFrame()
-				HideHudComponentThisFrame(11)
-				HideHudComponentThisFrame(12)
-				HideHudComponentThisFrame(21)
-				HideHudAndRadarThisFrame()
-				Wait(0)
-				local vehicles = GetGamePool('CVehicle')
-				for i = 1, #vehicles do
-					SetEntityLocallyInvisible(vehicles[i])
-				end
-			end
-			local playerId, playerPed = PlayerId(), PlayerPedId()
-			MumbleSetVolumeOverride(playerId, -1.0)
-			SetEntityVisible(playerPed, 1, 0)
-			SetPlayerInvincible(playerId, 0)
-			FreezeEntityPosition(playerPed, false)
-			Wait(10000)
-			canRelog = true
-		end)
-		CreateThread(function()
-			local playerPool = {}
-			while hidePlayers do
-				local players = GetActivePlayers()
-				for i = 1, #players do
-					local player = players[i]
-					if player ~= PlayerId() and not playerPool[player] then
-						playerPool[player] = true
-						NetworkConcealPlayer(player, true, true)
-					end
-				end
-				Wait(500)
-			end
-			for k in pairs(playerPool) do
-				NetworkConcealPlayer(k, false, false)
-			end
-		end)
-	end
+            TriggerEvent("esx_multicharacter:SetupCharacters")
+            break
+        end
 
-	SetupCharacter = function(index)
-		if not spawned then
-			exports.spawnmanager:spawnPlayer({
-				x = Config.Spawn.x,
-				y = Config.Spawn.y,
-				z = Config.Spawn.z,
-				heading = Config.Spawn.w,
-				model = Characters[index].model or mp_m_freemode_01,
-				skipFade = true
-			}, function()
-				canRelog = false
-				if Characters[index] then
-					local skin = Characters[index].skin or Config.Default
-					if not Characters[index].model then
-						if Characters[index].sex == TranslateCap('female') then skin.sex = 1 else skin.sex = 0 end
-					end
-					TriggerEvent('skinchanger:loadSkin', skin)
-				end
-				DoScreenFadeIn(600)
-			end)
-		repeat Wait(200) until not IsScreenFadedOut()
+        Wait(500)
+    end
+end)
 
-		elseif Characters[index] and Characters[index].skin then
-			if Characters[spawned] and Characters[spawned].model then
-				RequestModel(Characters[index].model)
-				while not HasModelLoaded(Characters[index].model) do
-					RequestModel(Characters[index].model)
-					Wait(0)
-				end
-				SetPlayerModel(PlayerId(), Characters[index].model)
-				SetModelAsNoLongerNeeded(Characters[index].model)
-			end
-			TriggerEvent('skinchanger:loadSkin', Characters[index].skin)
-		end
-		spawned = index
-		local playerPed = PlayerPedId()
-		FreezeEntityPosition(PlayerPedId(), true)
-		SetPedAoBlobRendering(playerPed, true)
-		SetEntityAlpha(playerPed, 255)
-		SendNUIMessage({
-			action = "openui",
-			character = Characters[spawned]
-		})
-	end
+local function startLoop()
+    if hidingPlayers then return end
 
-	function CharacterDeleteConfirmation(Characters, slots, SelectedCharacter, value)
-		local elements = {
-			{title = TranslateCap('char_delete_confirmation'), icon = "fa-solid fa-users", description = TranslateCap('char_delete_confirmation_description'), unselectable = true},
-			{title = TranslateCap('char_delete'), icon ="fa-solid fa-xmark", description = TranslateCap('char_delete_yes_description'), action = 'delete', value = value},
-			{title = TranslateCap('return'), unselectable = false, icon = "fa-solid fa-arrow-left", description = TranslateCap('char_delete_no_description'), action = "return"}
-		}
-	
-		ESX.OpenContext("left", elements, function(element, Action)
-			if Action.action == "delete" then
-				ESX.CloseContext()
-				TriggerServerEvent('esx_multicharacter:DeleteCharacter', Action.value)
-				spawned = false
-			elseif Action.action == "return" then
-				CharacterOptions(Characters, slots, SelectedCharacter)
-			end
-		end, nil, false)
-	end
+    hidingPlayers = true
 
-	function CharacterOptions(Characters, slots, SelectedCharacter)
-		local elements = {{title = TranslateCap('character', Characters[SelectedCharacter.value].firstname .. " ".. Characters[SelectedCharacter.value].lastname),icon = "fa-regular fa-user", unselectable = true}, 
-		{title = TranslateCap('return'), unselectable = false,icon = "fa-solid fa-arrow-left",description = TranslateCap('return_description'), action = "return"}}
-		if not Characters[SelectedCharacter.value].disabled then 
-			elements[3] = {title = TranslateCap('char_play'), description = TranslateCap('char_play_description'), icon ="fa-solid fa-play",action = 'play', value = SelectedCharacter.value}
-		else
-			elements[3] = {title = TranslateCap('char_disabled'), value = SelectedCharacter.value, icon ="fa-solid fa-xmark", description = TranslateCap('char_disabled_description'),}
-		end
-		if Config.CanDelete then elements[4] = {title = TranslateCap('char_delete'),icon ="fa-solid fa-xmark",description = TranslateCap('char_delete_description'), action = 'delete', value = SelectedCharacter.value} end
-		ESX.OpenContext("left", elements, function(element, Action)
-			if Action.action == "play" then
-				SendNUIMessage({
-					action = "closeui"
-				})
-				ESX.CloseContext()
-				TriggerServerEvent('esx_multicharacter:CharacterChosen', Action.value, false)
-			elseif Action.action == "delete" then
-				CharacterDeleteConfirmation(Characters, slots, SelectedCharacter, Action.value)
-			elseif Action.action == "return" then
-				SelectCharacterMenu(Characters, slots)
-			end
-		end, nil, false)
-	end
+    MumbleSetVolumeOverride(playerId, 0.0)
 
-	function SelectCharacterMenu(Characters, slots)
-		local Character = next(Characters)
-		local elements = {{title = TranslateCap('select_char') , icon = "fa-solid fa-users", description =  TranslateCap('select_char_description') , unselectable = true}}
-		for k,v in pairs(Characters) do
-			if not v.model and v.skin then
-				if v.skin.model then v.model = v.skin.model elseif v.skin.sex == 1 then v.model = mp_f_freemode_01 else v.model = mp_m_freemode_01 end
-			end
-			if not spawned then SetupCharacter(Character) end
-			local label = v.firstname..' '..v.lastname
-			if Characters[k].disabled then
-				elements[#elements+1] = {title = label,icon = "fa-regular fa-user", value = v.id}
-			else
-				elements[#elements+1] = {title = label,icon = "fa-regular fa-user", value = v.id}
-			end
-		end
-		if #elements - 1 < slots then
-			elements[#elements+1] = {title = TranslateCap('create_char'), icon = "fa-solid fa-plus", value = (#elements+1), new = true}
-		end
+    CreateThread(function()
+        local keysToKeepEnabled = { 18, 27, 172, 173, 174, 175, 176, 177, 187, 188, 191, 201, 108, 109 }
+        local playerPedId
 
-		ESX.OpenContext("left", elements, function(menu, SelectedCharacter)
-			if SelectedCharacter.new then
-				ESX.CloseContext()
-				local GetSlot = function()
-					for i = 1, slots do
-						if not Characters[i] then
-							return i
-						end
-					end
-				end
-				local slot = GetSlot()
-				TriggerServerEvent('esx_multicharacter:CharacterChosen', slot, true)
-				TriggerEvent('esx_identity:showRegisterIdentity')
-				local playerPed = PlayerPedId()
-					SetPedAoBlobRendering(playerPed, false)
-					SetEntityAlpha(playerPed, 0)
-					SendNUIMessage({
-						action = "closeui"
-					})
-			else
-				CharacterOptions(Characters,slots, SelectedCharacter)
-				SetupCharacter(SelectedCharacter.value)
-				local playerPed = PlayerPedId()
-				SetPedAoBlobRendering(playerPed, true)
-				ResetEntityAlpha(playerPed)
-			end
-		end, nil, false)
-	end
-	RegisterNetEvent('esx_multicharacter:SetupUI')
-	AddEventHandler('esx_multicharacter:SetupUI', function(data, slots)
-		DoScreenFadeOut(0)
-		Characters = data
-		slots = slots
-		local Character = next(Characters)
-		exports.spawnmanager:forceRespawn()
+        while hidingPlayers do
+            playerPedId = PlayerPedId()
 
-		if not Character then
-			SendNUIMessage({
-				action = "closeui"
-			})
-			exports.spawnmanager:spawnPlayer({
-				x = Config.Spawn.x,
-				y = Config.Spawn.y,
-				z = Config.Spawn.z,
-				heading = Config.Spawn.w,
-				model = mp_m_freemode_01,
-				skipFade = true
-			}, function()
-				canRelog = false
-				DoScreenFadeIn(400)
-				Wait(400)
-				local playerPed = PlayerPedId()
-				SetPedAoBlobRendering(playerPed, false)
-				SetEntityAlpha(playerPed, 0)
-				TriggerServerEvent('esx_multicharacter:CharacterChosen', 1, true)
-				TriggerEvent('esx_identity:showRegisterIdentity')
-			end)
-		else
-			SelectCharacterMenu(Characters, slots)
-		end
-	end)
+            SetEntityVisible(playerPedId, false, false)
+            SetLocalPlayerVisibleLocally(true)
+            SetPlayerInvincible(playerId, true)
 
-	RegisterNetEvent('esx:playerLoaded')
-	AddEventHandler('esx:playerLoaded', function(playerData, isNew, skin)
-		local spawn = playerData.coords or Config.Spawn
-		if isNew or not skin or #skin == 1 then
-			local finished = false
-			skin = Config.Default[playerData.sex]
-			skin.sex = playerData.sex == "m" and 0 or 1
-			local model = skin.sex == 0 and mp_m_freemode_01 or mp_f_freemode_01
-			RequestModel(model)
-			while not HasModelLoaded(model) do
-				RequestModel(model)
-				Wait(0)
-			end
-			SetPlayerModel(PlayerId(), model)
-			SetModelAsNoLongerNeeded(model)
-			TriggerEvent('skinchanger:loadSkin', skin, function()
-				local playerPed = PlayerPedId()
-				SetPedAoBlobRendering(playerPed, true)
-				ResetEntityAlpha(playerPed)
-				TriggerEvent('esx_skin:openSaveableMenu', function()
-					finished = true end, function() finished = true
-				end)
-			end)
-			repeat Wait(200) until finished
-		end
-		DoScreenFadeOut(100)
+            ThefeedHideThisFrame()
+            HideHudComponentThisFrame(11)
+            HideHudComponentThisFrame(12)
+            HideHudComponentThisFrame(21)
+            HideHudAndRadarThisFrame()
 
-		SetCamActive(cam, false)
-		RenderScriptCams(false, false, 0, true, true)
-		cam = nil
-		local playerPed = PlayerPedId()
-		FreezeEntityPosition(playerPed, true)
-		SetEntityCoordsNoOffset(playerPed, spawn.x, spawn.y, spawn.z, false, false, false, true)
-		SetEntityHeading(playerPed, spawn.heading)
-		if not isNew then TriggerEvent('skinchanger:loadSkin', skin or Characters[spawned].skin) end
-		Wait(400)
-		DoScreenFadeIn(400)
-		repeat Wait(200) until not IsScreenFadedOut()
-		TriggerServerEvent('esx:onPlayerSpawn')
-		TriggerEvent('esx:onPlayerSpawn')
-		TriggerEvent('playerSpawned')
-		TriggerEvent('esx:restoreLoadout')
-		Characters, hidePlayers = {}, false
-	end)
+            DisableAllControlActions(0)
 
-	RegisterNetEvent('esx:onPlayerLogout')
-	AddEventHandler('esx:onPlayerLogout', function()
-		DoScreenFadeOut(500)
-		Wait(1000)
-		spawned = false
-		TriggerEvent("esx_multicharacter:SetupCharacters")
-		TriggerEvent('esx_skin:resetFirstSpawn')
-	end)
+            for i = 1, #keysToKeepEnabled do
+                EnableControlAction(0, keysToKeepEnabled[i], true)
+            end
 
-	if Config.Relog then
-		RegisterCommand('relog', function(source, args, rawCommand)
-			if canRelog then
-				canRelog = false
-				TriggerServerEvent('esx_multicharacter:relog')
-				ESX.SetTimeout(10000, function()
-					canRelog = true
-				end)
-			end
-		end)
-	end
+            local vehicles = GetGamePool("CVehicle")
+            for i = 1, #vehicles do
+                SetEntityLocallyInvisible(vehicles[i])
+            end
 
+            Wait(0)
+        end
+
+        MumbleSetVolumeOverride(playerId, -1.0)
+        SetEntityVisible(playerPedId, true, false)
+        SetPlayerInvincible(playerId, false)
+        FreezeEntityPosition(playerPedId, false)
+
+        Wait(10000)
+
+        canRelog = true
+    end)
+
+    CreateThread(function()
+        local hiddenPlayers = {}
+
+        while hidingPlayers do
+            local players = GetActivePlayers()
+
+            for i = 1, #players do
+                local player = players[i]
+
+                if player ~= playerId and not hiddenPlayers[player] then
+                    hiddenPlayers[player] = true
+
+                    NetworkConcealPlayer(player, true, true)
+                end
+            end
+
+            Wait(500)
+        end
+
+        for player in pairs(hiddenPlayers) do
+            NetworkConcealPlayer(player, false, false)
+        end
+    end)
+end
+
+function setupCharacter(index)
+    if not spawned then
+        exports.spawnmanager:spawnPlayer({
+            x = Config.Spawn.x,
+            y = Config.Spawn.y,
+            z = Config.Spawn.z,
+            heading = Config.Spawn.w,
+            model = Characters[index].model or mp_m_freemode_01,
+            skipFade = true
+        }, function()
+            canRelog = false
+
+            if Characters[index] then
+                local skin = Characters[index].skin or Config.Default
+
+                if not Characters[index].model then
+                    if Characters[index].sex == _U("female") then skin.sex = 1 else skin.sex = 0 end
+                end
+
+                TriggerEvent("skinchanger:loadSkin", skin)
+            end
+
+            DoScreenFadeIn(1000)
+        end)
+
+        repeat Wait(200) until not IsScreenFadedOut()
+    elseif Characters[index] and Characters[index].skin then
+        if Characters[spawned] and Characters[spawned].model then
+            RequestModel(Characters[index].model)
+
+            while not HasModelLoaded(Characters[index].model) do
+                RequestModel(Characters[index].model)
+                Wait(500)
+            end
+
+            SetPlayerModel(playerId, Characters[index].model)
+            SetModelAsNoLongerNeeded(Characters[index].model)
+        end
+
+        TriggerEvent("skinchanger:loadSkin", Characters[index].skin)
+    end
+
+    local playerPedId = PlayerPedId()
+    spawned = index
+
+    FreezeEntityPosition(playerPedId, true)
+    SetPedAoBlobRendering(playerPedId, true)
+    SetEntityAlpha(playerPedId, 255, false)
+
+    SendNUIMessage({
+        action = "openui",
+        character = Characters[spawned]
+    })
+end
+
+function characterOptions(characters, slots, selectedCharacter)
+    local elements = {
+        {
+            title = _U("character", characters[selectedCharacter.value].firstname .. " " .. characters[selectedCharacter.value].lastname),
+            icon = "fa-regular fa-user",
+            unselectable = true
+        },
+        {
+            title = _U("return"),
+            unselectable = false,
+            icon = "fa-solid fa-arrow-left",
+            description = _U("return_description"),
+            action = "return"
+        }
+    }
+
+    if characters[selectedCharacter.value].disabled then
+        elements[3] = {
+            title = _U("char_disabled"),
+            value = selectedCharacter.value,
+            icon = "fa-solid fa-xmark",
+            description = _U("char_disabled_description"),
+        }
+    else
+        elements[3] = {
+            title = _U("char_play"),
+            description = _U("char_play_description"),
+            icon = "fa-solid fa-play",
+            action = "play",
+            value = selectedCharacter.value
+        }
+    end
+
+    if Config.CanDelete then
+        elements[4] = {
+            title = _U("char_delete"),
+            icon = "fa-solid fa-xmark",
+            description = _U("char_delete_description"),
+            action = "delete",
+            value = selectedCharacter.value
+        }
+    end
+
+    ESX.OpenContext("left", elements, function(_, element)
+        if element.action == "play" then
+            SendNUIMessage({
+                action = "closeui"
+            })
+
+            ESX.CloseContext()
+
+            TriggerServerEvent("esx_multicharacter:CharacterChosen", element.value, false)
+        elseif element.action == "delete" then
+            characterDeleteConfirmation(characters, slots, selectedCharacter, element.value)
+        elseif element.action == "return" then
+            selectCharacterMenu(characters, slots)
+        end
+    end, nil, false)
+end
+
+function characterDeleteConfirmation(characters, slots, selectedCharacter, value)
+    local elements = {
+        {
+            title = _U("char_delete_confirmation"),
+            icon = "fa-solid fa-users",
+            description = _U("char_delete_confirmation_description"),
+            unselectable = true
+        },
+        {
+            title = _U("char_delete"),
+            icon = "fa-solid fa-xmark",
+            description = _U("char_delete_yes_description"),
+            action = "delete",
+            value = value
+        },
+        {
+            title = _U("return"),
+            unselectable = false,
+            icon = "fa-solid fa-arrow-left",
+            description = _U("char_delete_no_description"),
+            action = "return"
+        }
+    }
+
+    ESX.OpenContext("left", elements, function(_, element)
+        if element.action == "delete" then
+            spawned = false
+
+            ESX.CloseContext()
+
+            TriggerServerEvent("esx_multicharacter:DeleteCharacter", element.value)
+        elseif element.action == "return" then
+            characterOptions(characters, slots, selectedCharacter)
+        end
+    end, nil, false)
+end
+
+function selectCharacterMenu(characters, slots)
+    local firstCharacter = next(characters)
+    local elements = {
+        {
+            title = _U("select_char"),
+            icon = "fa-solid fa-users",
+            description = _U("select_char_description"),
+            unselectable = true
+        }
+    }
+
+    for _, v in pairs(characters) do
+        if not v.model and v.skin then
+            if v.skin.model then
+                v.model = v.skin.model
+            elseif v.skin.sex == 1 then
+                v.model = mp_f_freemode_01
+            else
+                v.model = mp_m_freemode_01
+            end
+        end
+
+        if not spawned then setupCharacter(firstCharacter) end
+
+        elements[#elements + 1] = { title = ("%s %s"):format(v.firstname, v.lastname), icon = "fa-regular fa-user", value = v.id }
+    end
+
+    if #elements - 1 < slots then
+        elements[#elements + 1] = { title = _U("create_char"), icon = "fa-solid fa-plus", value = (#elements + 1), new = true }
+    end
+
+    ESX.OpenContext("left", elements, function(_, element)
+        if element.new then
+            local slot
+
+            for i = 1, slots do
+                if not characters[i] then
+                    slot = i
+                    break
+                end
+            end
+
+            ESX.CloseContext()
+
+            TriggerServerEvent("esx_multicharacter:CharacterChosen", slot, true)
+            TriggerEvent("esx_identity:showRegisterIdentity")
+
+            local playerPedId = PlayerPedId()
+
+            SetPedAoBlobRendering(playerPedId, false)
+            SetEntityAlpha(playerPedId, 0, false)
+
+            SendNUIMessage({
+                action = "closeui"
+            })
+        else
+            local playerPedId = PlayerPedId()
+
+            SetPedAoBlobRendering(playerPedId, true)
+            ResetEntityAlpha(playerPedId)
+
+            characterOptions(characters, slots, element)
+
+            setupCharacter(element.value)
+        end
+    end, nil, false)
+end
+
+RegisterNetEvent("esx_multicharacter:SetupCharacters")
+AddEventHandler("esx_multicharacter:SetupCharacters", function()
+    ESX.PlayerLoaded = false
+    ESX.PlayerData = {}
+
+    local playerPedId = PlayerPedId()
+    spawned = false
+    cam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
+
+    SetEntityCoords(playerPedId, Config.Spawn.x, Config.Spawn.y, Config.Spawn.z, true, false, false, false)
+    SetEntityHeading(playerPedId, Config.Spawn.w)
+
+    DoScreenFadeOut(1000)
+
+    local offset = GetOffsetFromEntityInWorldCoords(playerPedId, 0, 1.7, 0.4)
+
+    SetCamActive(cam, true)
+    RenderScriptCams(true, false, 1, true, true)
+    SetCamCoord(cam, offset.x, offset.y, offset.z)
+    PointCamAtCoord(cam, Config.Spawn.x, Config.Spawn.y, Config.Spawn.z + 1.3)
+
+    startLoop()
+
+    ShutdownLoadingScreen()
+    ShutdownLoadingScreenNui()
+
+    TriggerEvent("esx:loadingScreenOff")
+    TriggerServerEvent("esx_multicharacter:SetupCharacters")
+end)
+
+RegisterNetEvent("esx_multicharacter:SetupUI")
+AddEventHandler("esx_multicharacter:SetupUI", function(data, slots)
+    DoScreenFadeOut(1000)
+
+    local character = next(data)
+    Characters = data
+    slots = slots
+
+    exports.spawnmanager:forceRespawn()
+
+    if not character then
+        SendNUIMessage({
+            action = "closeui"
+        })
+
+        exports.spawnmanager:spawnPlayer({
+            x = Config.Spawn.x,
+            y = Config.Spawn.y,
+            z = Config.Spawn.z,
+            heading = Config.Spawn.w,
+            model = mp_m_freemode_01,
+            skipFade = true
+        }, function()
+            canRelog = false
+
+            DoScreenFadeIn(1000)
+
+            local playerPedId = PlayerPedId()
+
+            SetPedAoBlobRendering(playerPedId, false)
+            SetEntityAlpha(playerPedId, 0, false)
+
+            TriggerServerEvent("esx_multicharacter:CharacterChosen", 1, true)
+            TriggerEvent("esx_identity:showRegisterIdentity")
+        end)
+    else
+        selectCharacterMenu(Characters, slots)
+    end
+end)
+
+RegisterNetEvent("esx:playerLoaded")
+AddEventHandler("esx:playerLoaded", function(playerData, isNew, skin)
+    local spawn = playerData.coords or Config.Spawn
+
+    if isNew or not skin or #skin == 1 then
+        local finished = false
+        local model = (type(playerData.sex) == "string" and playerData.sex:lower() == "f") and mp_f_freemode_01 or mp_m_freemode_01
+        skin = Config.Default[playerData.sex]
+        skin.sex = model == mp_m_freemode_01 and 0 or 1
+
+        RequestModel(model)
+
+        while not HasModelLoaded(model) do
+            RequestModel(model)
+            Wait(500)
+        end
+
+        SetPlayerModel(playerId, model)
+        SetModelAsNoLongerNeeded(model)
+
+        TriggerEvent("skinchanger:loadSkin", skin, function()
+            local playerPedId = PlayerPedId()
+
+            SetPedAoBlobRendering(playerPedId, true)
+            ResetEntityAlpha(playerPedId)
+
+            TriggerEvent("esx_skin:openSaveableMenu", function()
+                finished = true
+            end, function()
+                finished = true
+            end)
+        end)
+
+        repeat Wait(200) until finished
+    end
+
+    DoScreenFadeOut(1000)
+
+    SetCamActive(cam, false)
+    RenderScriptCams(false, false, 0, true, true)
+    cam = nil
+
+    local playerPedId = PlayerPedId()
+
+    FreezeEntityPosition(playerPedId, true)
+    SetEntityCoordsNoOffset(playerPedId, spawn.x, spawn.y, spawn.z, false, false, false)
+    SetEntityHeading(playerPedId, spawn.heading)
+
+    if not isNew then TriggerEvent("skinchanger:loadSkin", skin or Characters[spawned].skin) end
+
+    DoScreenFadeIn(1000)
+
+    repeat Wait(200) until not IsScreenFadedOut()
+
+    TriggerServerEvent("esx:onPlayerSpawn")
+    TriggerEvent("esx:onPlayerSpawn")
+    TriggerEvent("playerSpawned")
+    TriggerEvent("esx:restoreLoadout")
+
+    Characters, hidingPlayers, canRelog = {}, false, true
+end)
+
+RegisterNetEvent("esx:onPlayerLogout")
+AddEventHandler("esx:onPlayerLogout", function()
+    DoScreenFadeOut(1000)
+
+    spawned = false
+
+    TriggerEvent("esx_multicharacter:SetupCharacters")
+    TriggerEvent("esx_skin:resetFirstSpawn")
+end)
+
+if Config.Relog then
+    RegisterCommand("relog", function()
+        if canRelog then
+            canRelog = false
+
+            TriggerServerEvent("esx_multicharacter:relog")
+        end
+    end, false)
 end

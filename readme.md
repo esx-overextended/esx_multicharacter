@@ -1,4 +1,4 @@
-<h1 align='center'>[ESX] Multi-Character</a></h1><p align='center'><b><a href='https://discord.esx-framework.org/'>Discord</a> - <a href='https://esx-framework.org/'>Website</a> - <a href='https://documentation.esx-framework.org/'>Documentation</a></b></h5>
+<h1 align="center">[ESX] Multi-Character</a></h1><p align="center"><b><a href="https://discord.esx-framework.org/">Discord</a> - <a href="https://esx-framework.org/">Website</a> - <a href="https://documentation.esx-framework.org/">Documentation</a></b></h5>
 
 A Simplistic system, that allows Players to have multiple Characters, which can be customised for all player with `Config.Slots` or personally set a players character count using `setslots`, `remslots`, `enablechar` and `disablechar` Commands :)
 
@@ -17,7 +17,7 @@ A Simplistic system, that allows Players to have multiple Characters, which can 
 - The license obviously does not apply to previous versions and KASH has stated his resource is free to be used however
 
 <br>
-<table><tr><td><h4 align='center'>Legal Notices</h4></tr></td>
+<table><tr><td><h4 align="center">Legal Notices</h4></tr></td>
 <tr><td>
 Official Multi-Character system for ESX Legacy
 
@@ -30,9 +30,10 @@ the Free Software Foundation, either version 3 of the License, or
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses>.
+along with this program. If not, see <https://www.gnu.org/licenses>.
+
 </td></tr></table>

@@ -48,9 +48,7 @@ var money = Intl.NumberFormat("en-US", {
   Kashacter.CloseUI = function () {
     $("body").css({ display: "none" });
     $(".main-container").css({ display: "none" });
-    $("[data-charid=1]").html(
-      '<h3 class="character-fullname"></h3><div class="character-info"><p class="character-info-new"></p></div>'
-    );
+    $("[data-charid=1]").html('<h3 class="character-fullname"></h3><div class="character-info"><p class="character-info-new"></p></div>');
   };
 
   window.onload = function (e) {
