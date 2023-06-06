@@ -384,7 +384,6 @@ AddEventHandler("esx_multicharacter:SetupUI", function(data, slots)
     end
 end)
 
-RegisterNetEvent("esx:playerLoaded")
 AddEventHandler("esx:playerLoaded", function(playerData, isNew, skin)
     local spawn = playerData.coords or Config.Spawn
 
@@ -446,7 +445,6 @@ AddEventHandler("esx:playerLoaded", function(playerData, isNew, skin)
     Characters, hidingPlayers, canRelog = {}, false, true
 end)
 
-RegisterNetEvent("esx:onPlayerLogout")
 AddEventHandler("esx:onPlayerLogout", function()
     DoScreenFadeOut(1000)
 
