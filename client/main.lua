@@ -9,8 +9,6 @@ local Characters = {}
 CreateThread(function()
     while true do
         if NetworkIsPlayerActive(playerId) then
-            exports.spawnmanager:setAutoSpawn(false)
-
             DoScreenFadeOut(1000)
 
             TriggerEvent("esx_multicharacter:SetupCharacters")
@@ -96,7 +94,7 @@ end
 
 function setupCharacter(index)
     if not spawned then
-        exports.spawnmanager:spawnPlayer({
+        exports["es_extended"]:spawnPlayer({
             x = Config.Spawn.x,
             y = Config.Spawn.y,
             z = Config.Spawn.z,
@@ -352,14 +350,12 @@ AddEventHandler("esx_multicharacter:SetupUI", function(data, slots)
     Characters = data
     slots = slots
 
-    exports.spawnmanager:forceRespawn()
-
     if not character then
         SendNUIMessage({
             action = "closeui"
         })
 
-        exports.spawnmanager:spawnPlayer({
+        exports["es_extended"]:spawnPlayer({
             x = Config.Spawn.x,
             y = Config.Spawn.y,
             z = Config.Spawn.z,
