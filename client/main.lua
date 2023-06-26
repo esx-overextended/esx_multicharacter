@@ -9,8 +9,8 @@ local Characters = {}
 CreateThread(function()
     while true do
         if NetworkIsPlayerActive(playerId) then
-            DoScreenFadeOut(1000)
-
+            DoScreenFadeOut(0)
+            Wait(500)
             TriggerEvent("esx_multicharacter:SetupCharacters")
             break
         end
@@ -93,49 +93,32 @@ local function startLoop()
 end
 
 function setupCharacter(index)
-    if not spawned then
-        exports["es_extended"]:spawnPlayer({
-            x = Config.Spawn.x,
-            y = Config.Spawn.y,
-            z = Config.Spawn.z,
-            heading = Config.Spawn.w,
-            model = Characters[index].model or mp_m_freemode_01,
-            skipFade = true
-        }, function()
-            canRelog = false
+    canRelog = false
 
-            if Characters[index] then
-                local skin = Characters[index].skin or Config.Default
+    exports["es_extended"]:spawnPlayer({
+        x = Config.Spawn.x,
+        y = Config.Spawn.y,
+        z = Config.Spawn.z,
+        heading = Config.Spawn.w,
+        model = Characters[index].model or mp_m_freemode_01
+    })
 
-                if not Characters[index].model then
-                    if Characters[index].sex == _U("female") then skin.sex = 1 else skin.sex = 0 end
-                end
+    if Characters[index] then
+        local skin = Characters[index].skin or Config.Default
 
-                TriggerEvent("skinchanger:loadSkin", skin)
-            end
-
-            DoScreenFadeIn(1000)
-        end)
-
-        repeat Wait(200) until not IsScreenFadedOut()
-    elseif Characters[index] and Characters[index].skin then
-        if Characters[spawned] and Characters[spawned].model then
-            RequestModel(Characters[index].model)
-
-            while not HasModelLoaded(Characters[index].model) do
-                RequestModel(Characters[index].model)
-                Wait(500)
-            end
-
-            SetPlayerModel(playerId, Characters[index].model)
-            SetModelAsNoLongerNeeded(Characters[index].model)
+        if not Characters[index].model then
+            if Characters[index].sex == _U("female") then skin.sex = 1 else skin.sex = 0 end
         end
 
-        TriggerEvent("skinchanger:loadSkin", Characters[index].skin)
+        TriggerEvent("skinchanger:loadSkin", skin)
     end
 
-    local playerPedId = PlayerPedId()
+    DoScreenFadeIn(500)
+
+    repeat Wait(0) until not IsScreenFadedOut()
+
     spawned = index
+    local playerPedId = PlayerPedId()
 
     FreezeEntityPosition(playerPedId, true)
     SetPedAoBlobRendering(playerPedId, true)
@@ -431,7 +414,7 @@ AddEventHandler("esx:playerLoaded", function(playerData, isNew, skin)
 
     DoScreenFadeIn(1000)
 
-    repeat Wait(200) until not IsScreenFadedOut()
+    repeat Wait(0) until not IsScreenFadedOut()
 
     TriggerServerEvent("esx:onPlayerSpawn")
     TriggerEvent("esx:onPlayerSpawn")
