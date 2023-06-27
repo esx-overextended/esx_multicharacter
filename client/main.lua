@@ -19,6 +19,20 @@ CreateThread(function()
     end
 end)
 
+---@param model string | number
+---@param coords vector3 | table | vector4
+---@param heading? number
+---@param cb? function
+local function spawnPlayer(model, coords, heading, cb)
+    exports["es_extended"]:spawnPlayer({
+        x = coords.x,
+        y = coords.y,
+        z = coords.z,
+        heading = heading or coords.w or coords.heading,
+        model = model
+    }, cb and cb())
+end
+
 local function startLoop()
     if hidingPlayers then return end
 
@@ -95,13 +109,7 @@ end
 function setupCharacter(index)
     canRelog = false
 
-    exports["es_extended"]:spawnPlayer({
-        x = Config.Spawn.x,
-        y = Config.Spawn.y,
-        z = Config.Spawn.z,
-        heading = Config.Spawn.w,
-        model = Characters[index].model or mp_m_freemode_01
-    })
+    spawnPlayer(Characters[index].model or mp_m_freemode_01, Config.Spawn, Config.Spawn.w)
 
     if Characters[index] then
         local skin = Characters[index].skin or Config.Default
@@ -115,7 +123,7 @@ function setupCharacter(index)
 
     DoScreenFadeIn(500)
 
-    repeat Wait(0) until not IsScreenFadedOut()
+    while not IsScreenFadedIn() do Wait(0) end
 
     spawned = index
     local playerPedId = PlayerPedId()
@@ -300,14 +308,16 @@ AddEventHandler("esx_multicharacter:SetupCharacters", function()
     ESX.PlayerLoaded = false
     ESX.PlayerData = {}
 
-    local playerPedId = PlayerPedId()
     spawned = false
     cam = CreateCam("DEFAULT_SCRIPTED_CAMERA", true)
 
-    SetEntityCoords(playerPedId, Config.Spawn.x, Config.Spawn.y, Config.Spawn.z, true, false, false, false)
-    SetEntityHeading(playerPedId, Config.Spawn.w)
+    local playerPedId = PlayerPedId()
 
-    DoScreenFadeOut(1000)
+    spawnPlayer(GetEntityModel(playerPedId), Config.Spawn)
+
+    DoScreenFadeOut(0)
+
+    playerPedId = PlayerPedId()
 
     local offset = GetOffsetFromEntityInWorldCoords(playerPedId, 0, 1.7, 0.4)
 
@@ -327,8 +337,6 @@ end)
 
 RegisterNetEvent("esx_multicharacter:SetupUI")
 AddEventHandler("esx_multicharacter:SetupUI", function(data, slots)
-    DoScreenFadeOut(1000)
-
     local character = next(data)
     Characters = data
     slots = slots
@@ -338,17 +346,8 @@ AddEventHandler("esx_multicharacter:SetupUI", function(data, slots)
             action = "closeui"
         })
 
-        exports["es_extended"]:spawnPlayer({
-            x = Config.Spawn.x,
-            y = Config.Spawn.y,
-            z = Config.Spawn.z,
-            heading = Config.Spawn.w,
-            model = mp_m_freemode_01,
-            skipFade = true
-        }, function()
+        spawnPlayer(mp_m_freemode_01, Config.Spawn, Config.Spawn.w, function()
             canRelog = false
-
-            DoScreenFadeIn(1000)
 
             local playerPedId = PlayerPedId()
 
@@ -363,27 +362,24 @@ AddEventHandler("esx_multicharacter:SetupUI", function(data, slots)
     end
 end)
 
-AddEventHandler("esx:playerLoaded", function(playerData, isNew, skin)
-    local spawn = playerData.coords or Config.Spawn
+AddEventHandler("esx:playerLoaded", function(xPlayer, isNew, skin)
+    local spawn = xPlayer.coords or Config.Spawn
 
     if isNew or not skin or #skin == 1 then
         local finished = false
-        local model = (type(playerData.sex) == "string" and playerData.sex:lower() == "f") and mp_f_freemode_01 or mp_m_freemode_01
-        skin = Config.Default[playerData.sex]
+        local model = (type(xPlayer.sex) == "string" and xPlayer.sex:lower() == "f") and mp_f_freemode_01 or mp_m_freemode_01
+        skin = Config.Default[xPlayer.sex]
         skin.sex = model == mp_m_freemode_01 and 0 or 1
+        local playerPedId = PlayerPedId()
 
-        RequestModel(model)
+        DoScreenFadeOut(0)
 
-        while not HasModelLoaded(model) do
-            RequestModel(model)
-            Wait(500)
-        end
+        while not IsScreenFadedOut() do Wait(0) end
 
-        SetPlayerModel(playerId, model)
-        SetModelAsNoLongerNeeded(model)
+        spawnPlayer(model, GetEntityCoords(playerPedId), GetEntityHeading(playerPedId))
 
         TriggerEvent("skinchanger:loadSkin", skin, function()
-            local playerPedId = PlayerPedId()
+            playerPedId = PlayerPedId()
 
             SetPedAoBlobRendering(playerPedId, true)
             ResetEntityAlpha(playerPedId)
@@ -398,27 +394,22 @@ AddEventHandler("esx:playerLoaded", function(playerData, isNew, skin)
         repeat Wait(200) until finished
     end
 
-    DoScreenFadeOut(1000)
-
     SetCamActive(cam, false)
     RenderScriptCams(false, false, 0, true, true)
+
     cam = nil
 
-    local playerPedId = PlayerPedId()
+    DoScreenFadeOut(0)
 
-    FreezeEntityPosition(playerPedId, true)
-    SetEntityCoordsNoOffset(playerPedId, spawn.x, spawn.y, spawn.z, false, false, false)
-    SetEntityHeading(playerPedId, spawn.heading)
+    while not IsScreenFadedOut() do Wait(0) end
+
+    spawnPlayer(GetEntityModel(PlayerPedId()), spawn)
 
     if not isNew then TriggerEvent("skinchanger:loadSkin", skin or Characters[spawned].skin) end
 
-    DoScreenFadeIn(1000)
-
-    repeat Wait(0) until not IsScreenFadedOut()
-
     TriggerServerEvent("esx:onPlayerSpawn")
+
     TriggerEvent("esx:onPlayerSpawn")
-    TriggerEvent("playerSpawned")
     TriggerEvent("esx:restoreLoadout")
 
     Characters, hidingPlayers, canRelog = {}, false, true
