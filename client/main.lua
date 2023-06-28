@@ -405,7 +405,13 @@ AddEventHandler("esx:playerLoaded", function(xPlayer, isNew, skin)
 
     spawnPlayer(GetEntityModel(PlayerPedId()), spawn)
 
-    if not isNew then TriggerEvent("skinchanger:loadSkin", skin or Characters[spawned].skin) end
+    if isNew then
+        TriggerEvent("skinchanger:getSkin", function(playerSkin)
+            TriggerEvent("skinchanger:loadSkin", playerSkin)
+        end)
+    else
+        TriggerEvent("skinchanger:loadSkin", skin or Characters[spawned].skin)
+    end
 
     TriggerServerEvent("esx:onPlayerSpawn")
 
